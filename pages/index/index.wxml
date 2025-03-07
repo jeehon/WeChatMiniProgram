@@ -2,38 +2,52 @@
 <navigation-bar title="知创时光" back="{{false}}" color="black" background="#FFF"></navigation-bar>
 <scroll-view class="scrollarea" scroll-y type="list">
   <view class="container">
-    <view class="header">
-      <text class="title">知创时光</text>
+    <view class="header">      
       <text class="subtitle">输入文字或上传图片，获取AI生成的创意文案</text>
     </view>
 
     <view class="input-section">
       <textarea 
+        maxlength="-1"
         class="text-input" 
         placeholder="请输入需要生成文案的文字..." 
         bindinput="onTextInput"
         value="{{inputText}}"
+        wx:if="{{!tempImagePath}}"
       ></textarea>
+      <image 
+        class="preview-image" 
+        src="{{tempImagePath}}" 
+        mode="aspectFill" 
+        wx:if="{{tempImagePath}}"
+      ></image>
 
       <view class="divider">- 或 -</view>
 
       <view class="image-upload" bindtap="chooseImage">
         <icon class="upload-icon" type="add" size="40" color="#999999" wx:if="{{!tempImagePath}}"></icon>
-        <image class="preview-image" src="{{tempImagePath}}" mode="aspectFit" wx:if="{{tempImagePath}}"></image>
         <text class="upload-text" wx:if="{{!tempImagePath}}">点击上传图片</text>
       </view>
     </view>
 
-    <button class="generate-btn" bindtap="generateContent" loading="{{isGenerating}}">
-      生成文案
-    </button>
+    <view class="button-group">
+      <button class="generate-btn" bindtap="generateContent" loading="{{isGenerating}}">
+        生成文案
+      </button>
+      <button class="generate-btn" bindtap="generateImage" loading="{{isGenerating}}">
+        生成图片
+      </button>
+    </view>
 
     <view class="result-section" wx:if="{{generatedContent}}">
       <text class="result-title">生成结果</text>
       <view class="result-content">
-        <text>{{generatedContent}}</text>
+        <image wx:if="{{isImageResult}}" class="result-image" src="{{generatedContent}}" mode="widthFix"></image>
+        <text wx:else>{{generatedContent}}</text>
       </view>
-      <button class="copy-btn" bindtap="copyContent">复制文案</button>
+      <button class="copy-btn" bindtap="copyContent">
+        {{isImageResult ? '保存图片' : '复制文案'}}
+      </button>
     </view>
   </view>
 </scroll-view>

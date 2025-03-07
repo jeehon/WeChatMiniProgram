@@ -1,13 +1,14 @@
 // index.js
 const app = getApp()
-const API_BASE_URL = 'https://knowledgecreationtime-eparhedpcbgyg8h3.eastasia-01.azurewebsites.net/KCTBackend'
+const API_BASE_URL = 'https://knowledgecreationtime-eparhedpcbgyg8h3.eastasia-01.azurewebsites.net'
 
 Page({
   data: {
     inputText: '',
     tempImagePath: '',
     generatedContent: '',
-    isGenerating: false
+    isGenerating: false,
+    isImageResult: false
   },
 
   onTextInput(e) {
@@ -45,21 +46,14 @@ Page({
       })
       return
     }
-    console.log("test1");
-    this.setData({ isGenerating: true })
-    console.log("test2");
+    this.setData({ isGenerating: true, isImageResult: false })
     try {
       let result
       if (this.data.tempImagePath) {
-        // 处理图片
         result = await this.processImage()
       } else {
-        // 处理文字
-        console.log("test3");
         result = await this.processText();
-        console.log("test4");
       }
-
       this.setData({
         generatedContent: result,
         isGenerating: false
@@ -75,41 +69,45 @@ Page({
   },
 
   async processImage() {
-    // 上传图片到服务器
-    const uploadRes = await wx.uploadFile({
-      url: `${API_BASE_URL}/upload`,
-      filePath: this.data.tempImagePath,
-      name: 'image',
-      header: {
-        'content-type': 'multipart/form-data'
-      }
+    return new Promise((resolve, reject) => {
+      wx.uploadFile({
+        url: `${API_BASE_URL}/Upload`,
+        filePath: this.data.tempImagePath,
+        name: 'image',
+        header: {
+          'content-type': 'multipart/form-data'
+        },
+        success: async function(res) {
+          // 调用生成文案API
+          wx.request({
+            url: `${API_BASE_URL}/KCTBackend`,
+            method: 'POST',
+            header: {
+              'content-type': 'application/json'
+            },
+            data: {
+              type: 'ImageToText',
+              content: res.data
+            },
+            success: function(res) {
+              resolve(res.data.content)
+            },
+            fail: function(err) {
+              reject(new Error('生成文案失败, ' + err))
+            }
+          })
+        },
+        fail: function(err) {
+          reject(new Error('上传图片失败, ' + err))
+        }
+      })
     })
-
-    if (uploadRes.statusCode !== 200) {
-      throw new Error('上传图片失败')
-    }
-
-    // 调用生成文案API
-    const response = await wx.request({
-      url: `${API_BASE_URL}`,
-      method: 'POST',
-      data: {
-        type: 'image',
-        imageUrl: JSON.parse(uploadRes.data).url
-      }
-    })
-
-    if (response.statusCode !== 200) {
-      throw new Error('生成文案失败')
-    }
-
-    return response.data.content
   },
 
   async processText() {
     return new Promise((resolve, reject) => {
       wx.request({
-        url: `${API_BASE_URL}`,
+        url: `${API_BASE_URL}/KCTBackend`,
         method: 'POST',
         header: {
           'content-type': 'application/json'
@@ -129,14 +127,121 @@ Page({
   },
 
   copyContent() {
-    wx.setClipboardData({
-      data: this.data.generatedContent,
-      success: () => {
-        wx.showToast({
-          title: '复制成功',
-          icon: 'success'
-        })
+    if (this.data.isImageResult) {
+      // 保存图片
+      wx.saveImageToPhotosAlbum({
+        filePath: this.data.generatedContent,
+        success: () => {
+          wx.showToast({
+            title: '保存成功',
+            icon: 'success'
+          })
+        },
+        fail: () => {
+          wx.showToast({
+            title: '保存失败',
+            icon: 'none'
+          })
+        }
+      })
+    } else {
+      // 复制文案
+      wx.setClipboardData({
+        data: this.data.generatedContent,
+        success: () => {
+          wx.showToast({
+            title: '复制成功',
+            icon: 'success'
+          })
+        }
+      })
+    }
+  },
+
+  async generateImage() {
+    if (!this.data.inputText && !this.data.tempImagePath) {
+      wx.showToast({
+        title: '请输入文字或上传图片',
+        icon: 'none'
+      })
+      return
+    }
+    this.setData({ isGenerating: true, isImageResult: true })
+    try {
+      let result
+      if (this.data.tempImagePath) {
+        result = await this.processImageToImage()
+      } else {
+        result = await this.processTextToImage()
       }
+      this.setData({
+        generatedContent: result,
+        isGenerating: false
+      })
+    } catch (error) {
+      console.error('生成图片失败:', error)
+      wx.showToast({
+        title: '生成图片失败，请重试',
+        icon: 'none'
+      })
+      this.setData({ isGenerating: false })
+    }
+  },
+
+  async processImageToImage() {
+    return new Promise((resolve, reject) => {
+      wx.uploadFile({
+        url: `${API_BASE_URL}/Upload`,
+        filePath: this.data.tempImagePath,
+        name: 'image',
+        header: {
+          'content-type': 'multipart/form-data'
+        },
+        success: async function(res) {
+          wx.request({
+            url: `${API_BASE_URL}/KCTBackend`,
+            method: 'POST',
+            header: {
+              'content-type': 'application/json'
+            },
+            data: {
+              type: 'ImageToImage',
+              content: res.data
+            },
+            success: function(res) {
+              resolve(res.data.content)
+            },
+            fail: function(err) {
+              reject(new Error('生成图片失败, ' + err))
+            }
+          })
+        },
+        fail: function(err) {
+          reject(new Error('上传图片失败, ' + err))
+        }
+      })
+    })
+  },
+
+  async processTextToImage() {
+    return new Promise((resolve, reject) => {
+      wx.request({
+        url: `${API_BASE_URL}/KCTBackend`,
+        method: 'POST',
+        header: {
+          'content-type': 'application/json'
+        },
+        data: {
+          type: 'TextToImage',
+          content: this.data.inputText
+        },
+        success: function(res) {
+          resolve(res.data.content)
+        },
+        fail: function(err) {
+          reject(new Error('生成图片失败, ' + err))
+        }
+      })
     })
   }
 })
